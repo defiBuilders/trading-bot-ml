@@ -1,6 +1,6 @@
 import dotenv from 'dotenv';
 import { Scraper } from '@the-convocation/twitter-scraper';
-import { ProxyAgent, fetch as undiciFetch } from 'undici';
+import { cycleTLSFetch, cycleTLSExit } from '@the-convocation/twitter-scraper/cycletls';
 import { writeFileSync } from 'fs';
 
 dotenv.config();
@@ -16,17 +16,13 @@ async function main() {
     process.exit(1);
   }
 
-  let scraper: Scraper;
+  // Use CycleTLS to bypass Cloudflare bot detection
+  const scraper = new Scraper({
+    fetch: cycleTLSFetch as any,
+  });
+
   if (proxyUrl) {
-    const proxyAgent = new ProxyAgent(proxyUrl);
-    scraper = new Scraper({
-      fetch: ((input: any, init?: any) => {
-        return undiciFetch(input, { ...init, dispatcher: proxyAgent });
-      }) as any,
-    });
-    console.log(`Using proxy: ${proxyUrl.replace(/:[^:@]+@/, ':***@')}`);
-  } else {
-    scraper = new Scraper();
+    console.log(`Proxy: ${proxyUrl.replace(/:[^:@]+@/, ':***@')}`);
   }
 
   console.log(`Logging in as @${username}...`);
@@ -38,7 +34,6 @@ async function main() {
     const cookies = await scraper.getCookies();
     const cookiesJson = JSON.stringify(cookies);
 
-    // Save to file
     writeFileSync('cookies.json', cookiesJson);
     console.log('Cookies saved to cookies.json');
 
@@ -54,15 +49,19 @@ async function main() {
     }
 
     await scraper.logout();
+    cycleTLSExit();
+
     console.log('\nDone. Add to your .env:');
     console.log(`TWITTER_COOKIES='${cookiesJson}'`);
   } else {
     console.error('Login failed');
+    cycleTLSExit();
     process.exit(1);
   }
 }
 
 main().catch((err) => {
   console.error('Error:', err);
+  cycleTLSExit();
   process.exit(1);
 });
