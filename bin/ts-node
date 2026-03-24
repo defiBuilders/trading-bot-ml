@@ -1,0 +1,13 @@
+#!/usr/bin/env node
+// ESM-compatible wrapper that runs node with ts-node ESM loader so `npx ts-node ...` uses local project loader
+import { spawn } from 'child_process';
+
+const args = process.argv.slice(2);
+const nodeArgs = ['--loader', 'ts-node/esm', ...args];
+
+const child = spawn(process.execPath, nodeArgs, { stdio: 'inherit' });
+child.on('exit', (code, signal) => {
+  if (signal) process.kill(process.pid, signal);
+  // ensure numeric exit code
+  process.exit(typeof code === 'number' ? code : 0);
+});
